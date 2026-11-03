@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=80", "setuptools-scm[simple]>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retico-clip-zeroshot"
+dynamic = ["version"]
+dependencies = [
+    "retico-core>=2.0.0",
+    "retico-vision",
+    "torch>=1.9.0",
+    "transformers>=4.20.0",
+    "numpy",
+    "scipy",
+    "Pillow",
+    "tqdm",
+]
+requires-python = ">=3.8, <4"
+authors = [
+    {name = "Davide Cavicchini"},
+]
+description = "A ReTiCo module for zero-shot image and object classification using CLIP."
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = [
+    "retico",
+    "framework",
+    "incremental",
+    "real-time",
+    "dialogue",
+    "computer vision",
+    "object detection",
+    "clip",
+    "zero-shot",
+    "classification",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.urls]
+Repository = "https://github.com/retico-team/retico-clip-zeroshot"
+
+[tool.setuptools_scm]
+version_file = "retico_CLIP_zeroShot/version.py"

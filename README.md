@@ -1,89 +1,35 @@
 # retico-CLIP-zeroShot
+ReTiCo modules for zero-shot classification of scenes and objects using CLIP models. You give the modules a list of class labels and they classify every webcam frame (or every detected object) against those labels, without any retraining. Predictions are smoothed over time so that only stable results are committed, which makes the modules suited to dynamic, real-time environments.
 
-Retico modules for zero-shot classification of scenes and objects using CLIP models.
+If needed, you can also give the modules a small set of training images to fine-tune the predictions with the [CoOp](https://arxiv.org/abs/2109.01134) (Context Optimization) method.
 
-## Overview
+## Installation and Requirements
 
-The `retico-CLIP-zeroShot` module provides functionality for zero-shot classification of scenes and objects using CLIP models. 
-It leverages the power of CLIP to understand and classify images without the need for extensive retraining, making it ideal for dynamic environments and real-time applications.
-If needed, it also allow to define a small set of training examples to fine-tune the predictions using the [CoOp](https://arxiv.org/abs/2109.01134) method.
+To use the CLIP zero-shot modules you first need to install the retico-clip-zeroshot package:
+* Install retico-clip-zeroshot:
+```pip install retico-clip-zeroshot```
 
-## Installation
+  or, for the latest development version from GitHub:
+```pip install git+https://github.com/retico-team/retico-clip-zeroshot.git```
 
-### Step 1: Install retico dependencies
-First, ensure you have the `retico-core` and `retico-vision` modules installed.
-The `retico-vision` module needs to be installed and added to your Python path:
-```bash
-git clone https://github.com/retico-team/retico-vision.git
-```
-**Important**: Make sure to add the path to the `retico-vision` and `retico-core` libraries to your `PYTHONPATH` environment variable. This is required for the module to properly import the vision components.
+This also installs its Python dependencies, including `retico-core`, `retico-vision`, `torch` and `transformers`. The CLIP model weights are downloaded from Hugging Face automatically the first time a module runs.
 
-### Step 2: Install the package
+**Note:** the package is installed as `retico-clip-zeroshot`, but imported as `retico_CLIP_zeroShot`.
 
-```bash
-pip install git+https://github.com/retico-team/retico-CLIP-zeroShot.git
-```
+### Hardware
+* A CUDA GPU is recommended. The modules fall back to CPU automatically if no GPU is available.
 
-## Usage
-For a basic example of how to use the `retico-CLIP-zeroShot` module, refer to the `example_scene_classification.py` and `example_object_classification.py` files inside the `examples` directory of the repository.
-Note that you will also need to install and add to the environment the `retico-yolov11` module to provide the object detection capabilities for the object classification example.
+## Modules
 
-## Configuration
-Both the image and object classification modules can be configured with the following parameters:
-- `class_labels`: List of class labels to classify against. For example, ["dog", "cat", "car"].
-- `template`: Template for class labels with {class_name} placeholder. For example, "a photo of a {class_name}".
-- `model_name`: HuggingFace CLIP model name
-- `device`: Device to run the model on (auto-detect if None)
-- `ema_alpha`: EMA smoothing factor (0.0-1.0, higher = more responsive) used to smooth the model predictions for stability between frames
-- `confidence_threshold`: Minimum confidence threshold for class changes
-- `stability_frames`: Number of frames a class must be stable before COMMIT
-- `debug_prints`: Whether to print debug information
-- `use_coop`: Whether to use Context Optimization (CoOp) to train the token embeddings for the class labels.
-- `coop_n_ctx`: Number of context tokens for CoOp
-- `coop_ctx_init`: Initial context text for CoOp (empty for random init)
-- `coop_examples_folder`: Path to folder with training images for CoOp
-- `coop_epochs`: Number of training epochs for CoOp
-- `coop_lr`: Learning rate for CoOp training
+### `CLIPImageClassificationModule`
+Subscribes to `ImageIU` (e.g. from `WebcamModule` in `retico_vision`) and classifies the whole scene against the given class labels, producing a `CLIPClassificationIU`.
 
-The `CLIPImageClassificationModule` and `CLIPObjectClassificationModule` can be instantiated with these parameters to perform zero-shot classification on images and objects, respectively.
+Predictions are smoothed with an Exponential Moving Average (EMA), and a class is only committed once it has been stable for `stability_frames` frames:
+* **ADD**: a new class is predicted with a confidence of at least `confidence_threshold`
+* **COMMIT**: the same class has been predicted for `stability_frames` consecutive frames with sufficient confidence
+* **REVOKE**: the confidence drops below `confidence_threshold`, or the predicted class changes
 
-The `CLIPObjectClassificationModule` has an additional parameter:
-- `max_object_memory`: Maximum number of objects to track in memory (default: 1000). This limits the number of objects the module can remember across frames.
-- `similarity_threshold`: Cosine similarity threshold for matching objects across frames (default: 0.8). This controls how similar features must be to consider objects the same across frames.
-Note that the module uses a greedy approach to match objects across frames, the order of processing is the same as the order of the DetectedObjectsIU input.
-
-## Update Logic (ADD/COMMIT/REVOKE)
-
-The retico-CLIP-zeroShot modules implement a sophisticated update logic system that ensures stable and reliable classification results in real-time scenarios. This system uses three types of updates: **ADD**, **COMMIT**, and **REVOKE**, based on confidence levels and temporal stability.
-
-### Core Concepts
-
-- **EMA Smoothing**: Both modules use Exponential Moving Average (EMA) to smooth predictions over time, controlled by the `ema_alpha` parameter
-- **Confidence Threshold**: Predictions below `confidence_threshold` are considered unreliable
-- **Stability Frames**: A class must remain stable for `stability_frames` consecutive frames before being committed
-
-### Image Classification Update Logic
-
-The `CLIPImageClassificationModule` tracks scene-level classifications with the following logic:
-
-#### ADD (New Classification)
-- **Trigger**: First time a class is predicted with confidence above threshold
-- **Condition**: `confidence >= confidence_threshold` AND `current_class != predicted_class`
-- **Action**: Sends new classification result to downstream modules
-
-#### COMMIT (Stable Classification)
-- **Trigger**: A class has remained stable for the required number of frames
-- **Condition**: Same class predicted for `stability_frames` consecutive frames with sufficient confidence
-- **Action**: Confirms the classification is stable and reliable
-
-#### REVOKE (Unreliable Classification)
-- **Trigger**: Confidence drops below threshold or significant class change
-- **Conditions**:
-  - `confidence < confidence_threshold` (low confidence)
-  - Major class change detected
-- **Action**: Withdraws previous classification, indicating uncertainty
-
-#### Example Sequence:
+Example sequence:
 ```
 Frame 1: "dog" (conf: 0.8) → ADD "dog"
 Frame 2: "dog" (conf: 0.82) → (no update, building stability)
@@ -92,39 +38,31 @@ Frame 4: "cat" (conf: 0.7) → REVOKE "dog", then ADD "cat"
 Frame 5: "unknown" (conf: 0.05) → REVOKE "cat"
 ```
 
-### Object Classification Update Logic
+#### Arguments:
+* `class_labels` (list[str]): the class labels to classify against, e.g. `["dog", "cat", "car"]`; required
+* `template` (str): template for the class labels, with a `{class_name}` placeholder; defaults to `"A photo of a {class_name}"`
+* `model_name` (str): Hugging Face CLIP model name; defaults to `"openai/clip-vit-base-patch32"`
+* `device` (str): device to run the model on; defaults to `None` (auto-detect)
+* `ema_alpha` (float): EMA smoothing factor (0.0-1.0); higher is more responsive, lower is more stable; defaults to `0.3`
+* `confidence_threshold` (float): minimum confidence for a class to be added; higher is more conservative, with fewer false positives; defaults to `0.1`
+* `stability_frames` (int): number of consecutive frames a class must be stable before it is committed; more frames give a more stable output but a slower response; defaults to `3`
+* `use_coop` (bool): use CoOp to train the token embeddings for the class labels; defaults to `False`
+* `coop_examples_folder` (str): path to a folder with training images for CoOp, with one subfolder per class (e.g. `folder/dog/img1.jpg`); defaults to `None`
+* `coop_n_ctx` (int): number of context tokens for CoOp; defaults to `16`
+* `coop_ctx_init` (str): initial context text for CoOp (empty for random init); defaults to `""`
+* `coop_epochs` (int): number of training epochs for CoOp; defaults to `50`
+* `coop_lr` (float): learning rate for CoOp training; defaults to `0.002`
+* `debug_prints` (bool): print debug information; defaults to `False`
 
-The `CLIPObjectClassificationModule` handles multiple objects simultaneously with more complex tracking:
+### `CLIPObjectClassificationModule`
+Subscribes to `ExtractedObjectsIU` (produced by `ExtractObjectsModule` in `retico_vision`) and classifies each detected object against the given class labels, producing a `CLIPObjectFeaturesIU`.
 
-#### Object Tracking
-- **Feature Matching**: Uses CLIP feature similarity to match objects across frames 
-- **Persistent IDs**: Maintains consistent object IDs using `similarity_threshold`
-- **Per-Object State**: Each object has independent EMA smoothing and stability tracking
+Objects are tracked across frames by the cosine similarity of their CLIP features, so each object keeps a consistent ID and has its own EMA smoothing and stability tracking. Matching is greedy and follows the order of the objects in the `ExtractedObjectsIU` input. Feature vectors are kept for up to `max_object_memory` objects, and the state of objects that disappear is removed automatically.
+* **ADD**: the first objects are detected, a new object appears, or an existing object changes class
+* **COMMIT**: every detected object has kept the same class for `stability_frames` consecutive frames
+* **REVOKE**: all objects disappear from the scene, or the classifications become unreliable (low confidence)
 
-#### ADD (New Objects or Changes)
-- **Triggers**:
-  - First objects detected in the scene
-  - New objects appear
-  - Existing objects change classification
-- **Action**: Updates object classifications and IDs
-
-#### COMMIT (All Objects Stable)
-- **Trigger**: All detected objects have stable classifications
-- **Condition**: Every object has maintained the same class for `stability_frames` consecutive frames
-- **Action**: Confirms all object classifications are stable
-
-#### REVOKE (Objects Disappeared or Unreliable)
-- **Triggers**:
-  - All objects disappear from the scene
-  - Object classifications become unreliable (low confidence)
-- **Action**: Withdraws object classifications
-
-#### Memory Management
-- **Object Memory**: Maintains feature vectors for up to `max_object_memory` objects
-- **State Cleanup**: Automatically removes states for disappeared objects
-- **Feature Similarity**: Uses cosine similarity to match objects across frames
-
-#### Example Sequence:
+Example sequence:
 ```
 Frame 1: [obj1: "dog" (conf: 0.8)] → ADD objects
 Frame 2: [obj1: "dog" (conf: 0.82)] → (building stability)
@@ -134,44 +72,106 @@ Frame 5: [obj1: "dog" (conf: 0.86), obj2: "car" (conf: 0.89)] → COMMIT objects
 Frame 6: [] → REVOKE objects (all disappeared)
 ```
 
-### Configuration Tips
+#### Arguments:
+Takes all the arguments of `CLIPImageClassificationModule` above, plus:
 
-- **Higher `ema_alpha`**: More responsive to changes, less stable
-- **Lower `ema_alpha`**: More stable, slower to adapt
-- **Higher `confidence_threshold`**: More conservative, fewer false positives
-- **More `stability_frames`**: More stable output, slower response to changes
-- **Higher `similarity_threshold`**: Stricter object matching, more new IDs assigned
+**Object tracking**
+* `similarity_threshold` (float): cosine similarity threshold for matching objects across frames; higher means stricter matching and more new IDs; defaults to `0.8`
+* `max_object_memory` (int): the maximum number of objects to remember across frames; defaults to `10`
 
-### Project Structure
+### `ClassificationConsumer` and `ObjectClassificationConsumer`
+Debug modules (in `retico_CLIP_zeroShot.debug_modules`) that print the output of `CLIPImageClassificationModule` and `CLIPObjectClassificationModule`. They take no arguments.
 
+### Example
+**Note:** The example runner uses `WebcamModule` from `retico_vision` to classify the whole scene.
+
+```python
+from retico_core import *
+from retico_vision.vision import WebcamModule
+
+from retico_CLIP_zeroShot.image_classification import CLIPImageClassificationModule
+from retico_CLIP_zeroShot.debug_modules import ClassificationConsumer
+
+video = WebcamModule()
+
+template = "A scene from {class_name}."
+classes = ["outdoor", "indoor", "kitchen", "bedroom", "living room",
+           "office", "bathroom", "restaurant", "street", "park",
+           "beach", "forest", "urban area", "rural area", "cityscape"]
+classifier = CLIPImageClassificationModule(
+    template=template,
+    class_labels=classes,
+    model_name="openai/clip-vit-base-patch32",
+    ema_alpha=0.3,
+    confidence_threshold=0.15,
+    stability_frames=3,
+)
+debug_classifier = ClassificationConsumer()
+
+video.subscribe(classifier)
+classifier.subscribe(debug_classifier)
+
+network.run(video)
+
+input("Network is running. Press Enter to stop...")
+
+network.stop(video)
 ```
-retico-CLIP-zeroShot/
-├── retico_CLIP_zeroShot/
-│   ├── __init__.py
-│   ├── version.py              # Version information
-│   ├── constants.py             # Constants used in the module
-|   |
-|   ├── incremental_units.py  # Incremental units for scene and object classification
-|   |
-│   ├── base_CLIP.py            # Base class for CLIP modules
-│   ├── CoOp_encoder.py         # CoOp encoder for fine-tuning CLIP
-|   |
-│   ├── image_classification.py  # Image classification using CLIP
-|   ├── object_classification.py  # Object classification using CLIP
-|   |
-│   └── debug_modules.py       # Debugging modules to print the output IUs from the modules
-│
-├── examples/
-│   ├── example_scene_classification.py  # Example for scene classification
-│   └── example_object_classification.py # Example for object classification
-|
-├── setup.py                    # Package setup
-├── README.md                   # This file
-└── LICENSE                     # License file
+
+### Example 2
+**Note:** The example runner uses `WebcamModule` and `ExtractObjectsModule` from `retico_vision` and `Yolov11` from [retico-yolov11](https://github.com/retico-team/retico-yolov11) (`pip install retico-yolov11`) to detect the objects. `ExtractObjectsModule` lets you choose how many objects are extracted from each frame.
+
+```python
+from retico_core import *
+from retico_vision.vision import WebcamModule, ExtractObjectsModule
+
+from retico_yolov11.yolov11 import Yolov11
+
+from retico_CLIP_zeroShot.object_classification import CLIPObjectClassificationModule
+from retico_CLIP_zeroShot.debug_modules import ObjectClassificationConsumer
+
+video = WebcamModule()
+yolo = Yolov11()
+extractor = ExtractObjectsModule(num_obj_to_display=5)
+
+object_classifier = CLIPObjectClassificationModule(
+    model_name="openai/clip-vit-base-patch32",
+    template="A photo of a {class_name}.",
+    class_labels=["cat", "dog", "car", "bicycle", "person", "mouse", "keyboard", "phone", "laptop", "book"],
+    ema_alpha=0.4,
+    confidence_threshold=0.2,
+    stability_frames=2,
+    debug_prints=False,
+)
+debug_obj_classifier = ObjectClassificationConsumer()
+
+video.subscribe(yolo)
+yolo.subscribe(extractor)
+extractor.subscribe(object_classifier)
+object_classifier.subscribe(debug_obj_classifier)
+
+network.run(video)
+
+input("Network is running. Press Enter to stop...")
+
+network.stop(video)
 ```
 
-## Related Projects
+Citation
+```
+@inproceedings{radford2021learning,
+  title={Learning transferable visual models from natural language supervision},
+  author={Radford, Alec and Kim, Jong Wook and Hallacy, Chris and Ramesh, Aditya and Goh, Gabriel and Agarwal, Sandhini and Sastry, Girish and Askell, Amanda and Mishkin, Pamela and Clark, Jack and others},
+  booktitle={International conference on machine learning},
+  pages={8748--8763},
+  year={2021},
+  organization={PMLR}
+}
 
-- [ReTiCo Core](https://github.com/retico-team/retico-core) - The core ReTiCo framework
-- [ReTiCo Vision](https://github.com/retico-team/retico-vision) - Vision components for ReTiCo
-- [Hugging Face Transformers](https://github.com/huggingface/transformers) - The transformers library used for CLIP
+@article{zhou2022coop,
+  title={Learning to Prompt for Vision-Language Models},
+  author={Zhou, Kaiyang and Yang, Jingkang and Loy, Chen Change and Liu, Ziwei},
+  journal={International Journal of Computer Vision (IJCV)},
+  year={2022}
+}
+```
