@@ -44,4 +44,4 @@ classifiers = [
 Repository = "https://github.com/retico-team/retico-clip-zeroshot"
 
 [tool.setuptools_scm]
-version_file = "retico_CLIP_zeroShot/version.py"
+version_file = "retico_clip_zeroshot/version.py"

@@ -1,4 +1,4 @@
-# retico-CLIP-zeroShot
+# retico-clip-zeroShot
 ReTiCo modules for zero-shot classification of scenes and objects using CLIP models. You give the modules a list of class labels and they classify every webcam frame (or every detected object) against those labels, without any retraining. Predictions are smoothed over time so that only stable results are committed, which makes the modules suited to dynamic, real-time environments.
 
 If needed, you can also give the modules a small set of training images to fine-tune the predictions with the [CoOp](https://arxiv.org/abs/2109.01134) (Context Optimization) method.
@@ -13,8 +13,6 @@ To use the CLIP zero-shot modules you first need to install the retico-clip-zero
 ```pip install git+https://github.com/retico-team/retico-clip-zeroshot.git```
 
 This also installs its Python dependencies, including `retico-core`, `retico-vision`, `torch` and `transformers`. The CLIP model weights are downloaded from Hugging Face automatically the first time a module runs.
-
-**Note:** the package is installed as `retico-clip-zeroshot`, but imported as `retico_CLIP_zeroShot`.
 
 ### Hardware
 * A CUDA GPU is recommended. The modules fall back to CPU automatically if no GPU is available.
@@ -80,7 +78,7 @@ Takes all the arguments of `CLIPImageClassificationModule` above, plus:
 * `max_object_memory` (int): the maximum number of objects to remember across frames; defaults to `10`
 
 ### `ClassificationConsumer` and `ObjectClassificationConsumer`
-Debug modules (in `retico_CLIP_zeroShot.debug_modules`) that print the output of `CLIPImageClassificationModule` and `CLIPObjectClassificationModule`. They take no arguments.
+Debug modules (in `retico_clip_zeroShot.debug_modules`) that print the output of `CLIPImageClassificationModule` and `CLIPObjectClassificationModule`. They take no arguments.
 
 ### Example
 **Note:** The example runner uses `WebcamModule` from `retico_vision` to classify the whole scene.
@@ -89,8 +87,8 @@ Debug modules (in `retico_CLIP_zeroShot.debug_modules`) that print the output of
 from retico_core import *
 from retico_vision.vision import WebcamModule
 
-from retico_CLIP_zeroShot.image_classification import CLIPImageClassificationModule
-from retico_CLIP_zeroShot.debug_modules import ClassificationConsumer
+from retico_clip_zeroShot.image_classification import CLIPImageClassificationModule
+from retico_clip_zeroShot.debug_modules import ClassificationConsumer
 
 video = WebcamModule()
 
@@ -127,8 +125,8 @@ from retico_vision.vision import WebcamModule, ExtractObjectsModule
 
 from retico_yolov11.yolov11 import Yolov11
 
-from retico_CLIP_zeroShot.object_classification import CLIPObjectClassificationModule
-from retico_CLIP_zeroShot.debug_modules import ObjectClassificationConsumer
+from retico_clip_zeroShot.object_classification import CLIPObjectClassificationModule
+from retico_clip_zeroShot.debug_modules import ObjectClassificationConsumer
 
 video = WebcamModule()
 yolo = Yolov11()
