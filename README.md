@@ -20,7 +20,7 @@ This also installs its Python dependencies, including `retico-core`, `retico-vis
 ## Modules
 
 ### `CLIPImageClassificationModule`
-Subscribes to `ImageIU` (e.g. from `WebcamModule` in `retico_vision`) and classifies the whole scene against the given class labels, producing a `CLIPClassificationIU`.
+Subscribes to `ImageIU` and classifies the whole scene against the given class labels, producing a `CLIPClassificationIU`.
 
 Predictions are smoothed with an Exponential Moving Average (EMA), and a class is only committed once it has been stable for `stability_frames` frames:
 * **ADD**: a new class is predicted with a confidence of at least `confidence_threshold`
